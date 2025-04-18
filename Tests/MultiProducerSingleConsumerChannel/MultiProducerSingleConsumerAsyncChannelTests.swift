@@ -13,7 +13,6 @@
 import MultiProducerSingleConsumerChannel
 import XCTest
 
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 final class MultiProducerSingleConsumerAsyncChannelTests: XCTestCase {
   // MARK: - sourceDeinitialized
 
@@ -1073,7 +1072,6 @@ final class MultiProducerSingleConsumerAsyncChannelTests: XCTestCase {
   }
 }
 
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension MultiProducerSingleConsumerAsyncChannel {
   /// Collect all elements in the sequence into an array.
   fileprivate mutating func collect() async throws(Failure) -> [Element] {
@@ -1085,7 +1083,6 @@ extension MultiProducerSingleConsumerAsyncChannel {
   }
 }
 
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension MultiProducerSingleConsumerAsyncChannel.Source.SendResult {
   func assertIsProducerMore() {
     switch self {

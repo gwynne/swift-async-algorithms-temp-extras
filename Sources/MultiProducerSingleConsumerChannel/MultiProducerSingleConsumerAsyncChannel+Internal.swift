@@ -11,9 +11,7 @@
 
 #if compiler(>=6.1)
 import DequeModule
-import Synchronization
 
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension MultiProducerSingleConsumerAsyncChannel {
   @usableFromInline
   enum _InternalBackpressureStrategy: Sendable, CustomStringConvertible {
@@ -139,21 +137,20 @@ extension MultiProducerSingleConsumerAsyncChannel {
   }
 }
 
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension MultiProducerSingleConsumerAsyncChannel {
   @usableFromInline
   final class _Storage: Sendable {
     @usableFromInline
-    let _stateMachine: Mutex<_StateMachine>
+    nonisolated(unsafe) let _stateMachine: NIOLockedValueBox<_StateMachine>
 
     var onTermination: (@Sendable () -> Void)? {
       set {
-        self._stateMachine.withLock {
+        self._stateMachine.withLockedValue {
           $0._onTermination = newValue
         }
       }
       get {
-        self._stateMachine.withLock {
+        self._stateMachine.withLockedValue {
           $0._onTermination
         }
       }
@@ -163,11 +160,11 @@ extension MultiProducerSingleConsumerAsyncChannel {
     init(
       backpressureStrategy: _InternalBackpressureStrategy
     ) {
-      self._stateMachine = Mutex<_StateMachine>(_StateMachine(backpressureStrategy: backpressureStrategy))
+      self._stateMachine = .init(_StateMachine(backpressureStrategy: backpressureStrategy))
     }
 
     func channelDeinitialized() {
-      let action = self._stateMachine.withLock {
+      let action = self._stateMachine.withLockedValue {
         $0.channelDeinitialized()
       }
 
@@ -192,13 +189,13 @@ extension MultiProducerSingleConsumerAsyncChannel {
     }
 
     func sequenceInitialized() {
-      self._stateMachine.withLock {
+      self._stateMachine.withLockedValue {
         $0.sequenceInitialized()
       }
     }
 
     func sequenceDeinitialized() {
-      let action = self._stateMachine.withLock {
+      let action = self._stateMachine.withLockedValue {
         $0.sequenceDeinitialized()
       }
 
@@ -223,13 +220,13 @@ extension MultiProducerSingleConsumerAsyncChannel {
     }
 
     func iteratorInitialized() {
-      self._stateMachine.withLock {
+      self._stateMachine.withLockedValue {
         $0.iteratorInitialized()
       }
     }
 
     func iteratorDeinitialized() {
-      let action = self._stateMachine.withLock {
+      let action = self._stateMachine.withLockedValue {
         $0.iteratorDeinitialized()
       }
 
@@ -254,13 +251,13 @@ extension MultiProducerSingleConsumerAsyncChannel {
     }
 
     func sourceInitialized() {
-      self._stateMachine.withLock {
+      self._stateMachine.withLockedValue {
         $0.sourceInitialized()
       }
     }
 
     func sourceDeinitialized() {
-      let action = self._stateMachine.withLock {
+      let action = self._stateMachine.withLockedValue {
         $0.sourceDeinitialized()
       }
 
@@ -284,7 +281,7 @@ extension MultiProducerSingleConsumerAsyncChannel {
     func send(
       contentsOf sequence: sending some Sequence<Element>
     ) throws -> MultiProducerSingleConsumerAsyncChannel<Element, Failure>.Source.SendResult {
-      let action = self._stateMachine.withLock {
+      let action = self._stateMachine.withLockedValue {
         $0.send(sequence)
       }
 
@@ -313,7 +310,7 @@ extension MultiProducerSingleConsumerAsyncChannel {
       callbackToken: UInt64,
       continuation: UnsafeContinuation<Void, any Error>
     ) {
-      let action = self._stateMachine.withLock {
+      let action = self._stateMachine.withLockedValue {
         $0.enqueueContinuation(callbackToken: callbackToken, continuation: continuation)
       }
 
@@ -334,7 +331,7 @@ extension MultiProducerSingleConsumerAsyncChannel {
       callbackToken: UInt64,
       onProduceMore: sending @escaping (Result<Void, any Error>) -> Void
     ) {
-      let action = self._stateMachine.withLock {
+      let action = self._stateMachine.withLockedValue {
         $0.enqueueProducer(callbackToken: callbackToken, onProduceMore: onProduceMore)
       }
 
@@ -354,7 +351,7 @@ extension MultiProducerSingleConsumerAsyncChannel {
     func cancelProducer(
       callbackToken: UInt64
     ) {
-      let action = self._stateMachine.withLock {
+      let action = self._stateMachine.withLockedValue {
         $0.cancelProducer(callbackToken: callbackToken)
       }
 
@@ -374,7 +371,7 @@ extension MultiProducerSingleConsumerAsyncChannel {
 
     @inlinable
     func finish(_ failure: Failure?) {
-      let action = self._stateMachine.withLock {
+      let action = self._stateMachine.withLockedValue {
         $0.finish(failure)
       }
 
@@ -409,7 +406,7 @@ extension MultiProducerSingleConsumerAsyncChannel {
 
     @inlinable
     func next(isolation: isolated (any Actor)? = #isolation) async throws -> Element? {
-      let action = self._stateMachine.withLock {
+      let action = self._stateMachine.withLockedValue() {
         $0.next()
       }
 
@@ -451,7 +448,7 @@ extension MultiProducerSingleConsumerAsyncChannel {
     func suspendNext(isolation: isolated (any Actor)? = #isolation) async throws -> Element? {
       try await withTaskCancellationHandler {
         try await withUnsafeThrowingContinuation { (continuation: UnsafeContinuation<Element?, Error>) in
-          let action = self._stateMachine.withLock {
+          let action = self._stateMachine.withLockedValue {
             $0.suspendNext(continuation: continuation)
           }
 
@@ -496,7 +493,7 @@ extension MultiProducerSingleConsumerAsyncChannel {
           }
         }
       } onCancel: {
-        let action = self._stateMachine.withLock {
+        let action = self._stateMachine.withLockedValue {
           $0.cancelNext()
         }
 
@@ -524,11 +521,10 @@ extension MultiProducerSingleConsumerAsyncChannel {
   }
 }
 
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension MultiProducerSingleConsumerAsyncChannel._Storage {
   /// The state machine of the channel.
   @usableFromInline
-  struct _StateMachine: ~Copyable {
+  struct _StateMachine {
     /// The state machine's current state.
     @usableFromInline
     var _state: _State
@@ -536,7 +532,7 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage {
     @inlinable
     var _onTermination: (@Sendable () -> Void)? {
       set {
-        switch consume self._state {
+        switch self._state {
         case .channeling(var channeling):
           channeling.onTermination = newValue
           self = .init(state: .channeling(channeling))
@@ -589,7 +585,7 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage {
 
     @inlinable
     mutating func sourceInitialized() {
-      switch consume self._state {
+      switch self._state {
       case .channeling(var channeling):
         channeling.activeProducers += 1
         self = .init(state: .channeling(channeling))
@@ -616,7 +612,7 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage {
 
     @inlinable
     mutating func sourceDeinitialized() -> SourceDeinitialized? {
-      switch consume self._state {
+      switch self._state {
       case .channeling(var channeling):
         channeling.activeProducers -= 1
 
@@ -681,7 +677,7 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage {
 
     @inlinable
     mutating func sequenceInitialized() {
-      switch consume self._state {
+      switch self._state {
       case .channeling(var channeling):
         channeling.sequenceInitialized = true
         self = .init(state: .channeling(channeling))
@@ -710,7 +706,7 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage {
 
     @inlinable
     mutating func sequenceDeinitialized() -> ChannelOrSequenceDeinitializedAction? {
-      switch consume self._state {
+      switch self._state {
       case .channeling(let channeling):
         guard channeling.iteratorInitialized else {
           precondition(channeling.sequenceInitialized, "Sequence was not initialized")
@@ -769,7 +765,7 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage {
 
     @inlinable
     mutating func channelDeinitialized() -> ChannelOrSequenceDeinitializedAction? {
-      switch consume self._state {
+      switch self._state {
       case .channeling(let channeling):
         guard channeling.sequenceInitialized else {
           // No async sequence was created so we can transition to finished
@@ -822,7 +818,7 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage {
 
     @inlinable
     mutating func iteratorInitialized() {
-      switch consume self._state {
+      switch self._state {
       case .channeling(var channeling):
         if channeling.iteratorInitialized {
           // Our sequence is a unicast sequence and does not support multiple AsyncIterator's
@@ -875,7 +871,7 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage {
 
     @inlinable
     mutating func iteratorDeinitialized() -> IteratorDeinitializedAction? {
-      switch consume self._state {
+      switch self._state {
       case .channeling(let channeling):
         if channeling.iteratorInitialized {
           // An iterator was created and deinited. Since we only support
@@ -981,7 +977,7 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage {
 
     @inlinable
     mutating func send(_ sequence: sending some Sequence<Element>) -> SendAction {
-      switch consume self._state {
+      switch self._state {
       case .channeling(var channeling):
         // We have an element and can resume the continuation
         let bufferEndIndexBeforeAppend = channeling.buffer.endIndex
@@ -1049,7 +1045,7 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage {
       callbackToken: UInt64,
       onProduceMore: sending @escaping (Result<Void, any Error>) -> Void
     ) -> EnqueueProducerAction? {
-      switch consume self._state {
+      switch self._state {
       case .channeling(var channeling):
         if let index = channeling.cancelledAsyncProducers.firstIndex(of: callbackToken) {
           // Our producer got marked as cancelled.
@@ -1099,7 +1095,7 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage {
       callbackToken: UInt64,
       continuation: UnsafeContinuation<Void, any Error>
     ) -> EnqueueContinuationAction? {
-      switch consume self._state {
+      switch self._state {
       case .channeling(var channeling):
         if let index = channeling.cancelledAsyncProducers.firstIndex(of: callbackToken) {
           // Our producer got marked as cancelled.
@@ -1146,7 +1142,7 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage {
     mutating func cancelProducer(
       callbackToken: UInt64
     ) -> CancelProducerAction? {
-      switch consume self._state {
+      switch self._state {
       case .channeling(var channeling):
         guard let index = channeling.suspendedProducers.firstIndex(where: { $0.0 == callbackToken }) else {
           // The task that sends was cancelled before sending elements so the cancellation handler
@@ -1198,7 +1194,7 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage {
 
     @inlinable
     mutating func finish(_ failure: Failure?) -> FinishAction? {
-      switch consume self._state {
+      switch self._state {
       case .channeling(let channeling):
         guard let consumerContinuation = channeling.consumerContinuation else {
           // We don't have a suspended consumer so we are just going to mark
@@ -1270,7 +1266,7 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage {
 
     @inlinable
     mutating func next() -> NextAction {
-      switch consume self._state {
+      switch self._state {
       case .channeling(var channeling):
         guard channeling.consumerContinuation == nil else {
           // We have multiple AsyncIterators iterating the sequence
@@ -1352,7 +1348,7 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage {
 
     @inlinable
     mutating func suspendNext(continuation: UnsafeContinuation<Element?, any Error>) -> SuspendNextAction? {
-      switch consume self._state {
+      switch self._state {
       case .channeling(var channeling):
         guard channeling.consumerContinuation == nil else {
           // We have multiple AsyncIterators iterating the sequence
@@ -1430,7 +1426,7 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage {
 
     @inlinable
     mutating func cancelNext() -> CancelNextAction? {
-      switch consume self._state {
+      switch self._state {
       case .channeling(let channeling):
         self = .init(
           state: .finished(
@@ -1471,12 +1467,11 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage {
   }
 }
 
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension MultiProducerSingleConsumerAsyncChannel._Storage._StateMachine {
   @usableFromInline
-  enum _State: ~Copyable {
+  enum _State {
     @usableFromInline
-    struct Channeling: ~Copyable {
+    struct Channeling {
       /// The backpressure strategy.
       @usableFromInline
       var backpressureStrategy: MultiProducerSingleConsumerAsyncChannel._InternalBackpressureStrategy
@@ -1562,7 +1557,7 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage._StateMachine {
     }
 
     @usableFromInline
-    struct SourceFinished: ~Copyable {
+    struct SourceFinished {
       /// Indicates if the iterator was initialized.
       @usableFromInline
       var iteratorInitialized: Bool
@@ -1604,7 +1599,7 @@ extension MultiProducerSingleConsumerAsyncChannel._Storage._StateMachine {
     }
 
     @usableFromInline
-    struct Finished: ~Copyable {
+    struct Finished {
       /// Indicates if the iterator was initialized.
       @usableFromInline
       var iteratorInitialized: Bool

@@ -114,7 +114,6 @@ public struct MultiProducerSingleConsumerAsyncChannelAlreadyFinishedError: Error
 /// When the consumer stops consumption by either deiniting the channel or the task calling ``next(isolation:)``
 /// getting cancelled, the source will get notified about the termination if a termination callback has been set
 /// before by calling ``Source/setOnTerminationCallback(_:)``.
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 public struct MultiProducerSingleConsumerAsyncChannel<Element, Failure: Error>: ~Copyable {
   /// The backing storage.
   @usableFromInline
@@ -204,7 +203,6 @@ public struct MultiProducerSingleConsumerAsyncChannel<Element, Failure: Error>: 
   }
 }
 
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension MultiProducerSingleConsumerAsyncChannel {
   /// A struct to send values to the channel.
   ///
@@ -537,9 +535,8 @@ extension MultiProducerSingleConsumerAsyncChannel {
   }
 }
 
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension MultiProducerSingleConsumerAsyncChannel where Element: Copyable {
-  struct ChannelAsyncSequence: AsyncSequence {
+  public struct ChannelAsyncSequence: AsyncSequence {
     @usableFromInline
     final class _Backing: Sendable {
       @usableFromInline
@@ -567,14 +564,13 @@ extension MultiProducerSingleConsumerAsyncChannel where Element: Copyable {
   ///
   /// - Important: The returned asynchronous sequence only supports a single iterator to be created and
   /// will fatal error at runtime on subsequent calls to `makeAsyncIterator`.
-  public consuming func asyncSequence() -> some (AsyncSequence<Element, Failure> & Sendable) {
+  public consuming func asyncSequence() -> ChannelAsyncSequence {
     ChannelAsyncSequence(_backing: .init(storage: self.storage))
   }
 }
 
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension MultiProducerSingleConsumerAsyncChannel.ChannelAsyncSequence where Element: Copyable {
-  struct Iterator: AsyncIteratorProtocol {
+  public struct Iterator: AsyncIteratorProtocol {
     @usableFromInline
     final class _Backing {
       @usableFromInline
@@ -598,7 +594,7 @@ extension MultiProducerSingleConsumerAsyncChannel.ChannelAsyncSequence where Ele
     }
 
     @inlinable
-    mutating func next() async throws -> Element? {
+    public mutating func next() async throws -> Element? {
       do {
         return try await self._backing.storage.next(isolation: nil)
       } catch {
@@ -607,7 +603,7 @@ extension MultiProducerSingleConsumerAsyncChannel.ChannelAsyncSequence where Ele
     }
 
     @inlinable
-    mutating func next(
+    public mutating func next(
       isolation actor: isolated (any Actor)? = #isolation
     ) async throws(Failure) -> Element? {
       do {
@@ -619,6 +615,5 @@ extension MultiProducerSingleConsumerAsyncChannel.ChannelAsyncSequence where Ele
   }
 }
 //
-@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension MultiProducerSingleConsumerAsyncChannel.ChannelAsyncSequence: Sendable {}
 #endif

@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "swift-async-algorithms-temp-extras",
     platforms: [
-        .macOS(.v10_15),
+        .macOS(.v13),
     ],
     products: [
         .library(name: "MultiProducerSingleConsumerChannel", targets: ["MultiProducerSingleConsumerChannel"]),
@@ -18,6 +18,9 @@ let package = Package(
             dependencies: [
                 .product(name: "OrderedCollections", package: "swift-collections"),
                 .product(name: "DequeModule", package: "swift-collections"),
+            ],
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency=complete"),
             ]
         ),
         .testTarget(
